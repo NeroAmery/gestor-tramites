@@ -4,13 +4,13 @@ import json
 from datetime import datetime, date
 import os
 
-st.set_page_config(page_title="Gestor de Trámites - Melisa", layout="wide")
-st.title("📋 Gestor de Trámites - Melisa")
+st.set_page_config(page_title="Gestor de Trámites - G", layout="wide")
+st.title("📋 Gestor de Trámites - Agente G")
 
 DATA_FILE = "tramites.json"
 PASOS_FILE = "pasos.json"
 
-# Cargar datos
+# ================= CARGAR DATOS =================
 if os.path.exists(PASOS_FILE):
     with open(PASOS_FILE, "r", encoding="utf-8") as f:
         PASOS = json.load(f)
@@ -32,7 +32,6 @@ for paso in PASOS:
 with st.sidebar:
     st.header("⚙️ Gestionar Pasos")
     
-    # Agregar nuevo paso
     nuevo_paso = st.text_input("Nuevo paso:")
     if st.button("➕ Agregar Paso"):
         if nuevo_paso.strip() and nuevo_paso.strip() not in PASOS:
@@ -42,13 +41,12 @@ with st.sidebar:
             st.rerun()
 
     st.subheader("Pasos Actuales")
-    
     for i, paso in enumerate(PASOS):
-        col1, col2, col3, col4, col5 = st.columns([4, 1, 1, 1, 1])
+        col1, col2, col3, col4, col5 = st.columns([3.5, 1, 1, 1, 1])
         with col1:
             st.write(f"• {paso}")
         with col2:
-            if st.button("✏️", key=f"editp_{i}"):
+            if st.button("✏️", key=f"ep_{i}"):
                 st.session_state.edit_paso = i
                 st.rerun()
         with col3:
@@ -64,41 +62,34 @@ with st.sidebar:
                     json.dump(PASOS, f, ensure_ascii=False, indent=4)
                 st.rerun()
         with col5:
-            if st.button("🗑️", key=f"delp_{i}"):
-                st.session_state.del_paso_confirm = i
+            if st.button("🗑️", key=f"dp_{i}"):
+                st.session_state.del_paso = i
                 st.rerun()
 
     # Confirmar eliminación de paso
-    if st.session_state.get("del_paso_confirm") is not None:
-        i = st.session_state.del_paso_confirm
-        st.warning(f"¿Eliminar el paso '{PASOS[i]}'?")
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("Sí, eliminar"):
-                PASOS.pop(i)
-                with open(PASOS_FILE, "w", encoding="utf-8") as f:
-                    json.dump(PASOS, f, ensure_ascii=False, indent=4)
-                del st.session_state.del_paso_confirm
-                st.rerun()
-        with col2:
-            if st.button("Cancelar"):
-                del st.session_state.del_paso_confirm
-                st.rerun()
+    if st.session_state.get("del_paso") is not None:
+        i = st.session_state.del_paso
+        st.warning(f"¿Eliminar '{PASOS[i]}'?")
+        if st.button("Sí, eliminar"):
+            PASOS.pop(i)
+            with open(PASOS_FILE, "w", encoding="utf-8") as f:
+                json.dump(PASOS, f, ensure_ascii=False, indent=4)
+            del st.session_state.del_paso
+            st.rerun()
+        if st.button("Cancelar"):
+            del st.session_state.del_paso
+            st.rerun()
 
-    # Editar nombre de paso
+    # Editar paso
     if st.session_state.get("edit_paso") is not None:
         i = st.session_state.edit_paso
-        nuevo_nombre = st.text_input("Nuevo nombre del paso:", PASOS[i], key="nuevo_paso_input")
-        if st.button("Guardar Cambio"):
-            PASOS[i] = nuevo_nombre.strip()
+        nuevo = st.text_input("Nuevo nombre:", PASOS[i])
+        if st.button("Guardar"):
+            PASOS[i] = nuevo.strip()
             with open(PASOS_FILE, "w", encoding="utf-8") as f:
                 json.dump(PASOS, f, ensure_ascii=False, indent=4)
             del st.session_state.edit_paso
-            st.success("Paso actualizado")
             st.rerun()
-
-# ================= Resto de la app (Agregar, lista, etc.) =================
-# ... (Mantengo el resto igual para no romper lo que ya funciona)
 
 # ================= AGREGAR TRÁMITE =================
 with st.expander("➕ Agregar Nuevo Trámite", expanded=False):
@@ -136,10 +127,10 @@ for idx, row in df_mostrar.iterrows():
         with col1:
             st.write(f"**{row['Nombre_Tramite']}**")
             hoy = date.today()
-            fecha_lim = pd.to_datetime(row['Fecha_Limite']).date()
-            if fecha_lim < hoy:
+            fl = pd.to_datetime(row['Fecha_Limite']).date()
+            if fl < hoy:
                 st.error("⛔ VENCIDO")
-            elif fecha_lim == hoy:
+            elif fl == hoy:
                 st.warning("⚠️ Hoy vence")
             else:
                 st.success("✅ A tiempo")
@@ -150,66 +141,68 @@ for idx, row in df_mostrar.iterrows():
                 st.session_state.edit_id = row['ID']
                 st.rerun()
         with col3:
-            if st.button("🗑️ Eliminar", key=f"del_{idx}"):
-                st.session_state.del_id = row['ID']
+            if st.button("🖨️ Imprimir", key=f"print_{idx}"):
+                st.session_state.tramite_a_imprimir = row.to_dict()
                 st.rerun()
 
-        # Pasos colapsables
         with st.expander("Ver pasos y notas", expanded=False):
             for paso in PASOS:
                 c1, c2 = st.columns([1,4])
                 with c1:
-                    valor = st.checkbox(paso, value=bool(row.get(paso, False)), key=f"ch_{idx}_{paso}")
+                    valor = st.checkbox(paso, bool(row.get(paso, False)), key=f"ch_{idx}_{paso}")
                     if valor != row.get(paso, False):
                         real_idx = df.index[df['ID'] == row['ID']][0]
                         df.at[real_idx, paso] = valor
                         df.to_json(DATA_FILE, orient="records", force_ascii=False, indent=4)
                         st.rerun()
                 with c2:
-                    nota = st.text_input("Nota:", value=row.get(paso + "_nota", ""), key=f"nt_{idx}_{paso}")
-                    if nota != row.get(paso + "_nota", ""):
+                    nota = st.text_input("Nota:", row.get(paso+"_nota",""), key=f"nt_{idx}_{paso}")
+                    if nota != row.get(paso+"_nota",""):
                         real_idx = df.index[df['ID'] == row['ID']][0]
-                        df.at[real_idx, paso + "_nota"] = nota
+                        df.at[real_idx, paso+"_nota"] = nota
                         df.to_json(DATA_FILE, orient="records", force_ascii=False, indent=4)
                         st.rerun()
 
-        # Editar Trámite (aparece justo debajo)
-        if st.session_state.get("edit_id") == row['ID']:
-            st.subheader("Editar Trámite")
-            nuevo_nombre = st.text_input("Nombre", row['Nombre_Tramite'], key="edit_nombre")
-            col1, col2 = st.columns(2)
-            with col1:
-                nueva_ing = st.date_input("Fecha Ingreso", pd.to_datetime(row['Fecha_Ingreso']).date(), key="edit_ing")
-            with col2:
-                nueva_lim = st.date_input("Fecha Límite", pd.to_datetime(row['Fecha_Limite']).date(), key="edit_lim")
-            col_save, col_cancel = st.columns(2)
-            with col_save:
-                if st.button("Guardar Cambios"):
-                    real_idx = df.index[df['ID'] == st.session_state.edit_id][0]
-                    df.at[real_idx, 'Nombre_Tramite'] = nuevo_nombre
-                    df.at[real_idx, 'Fecha_Ingreso'] = str(nueva_ing)
-                    df.at[real_idx, 'Fecha_Limite'] = str(nueva_lim)
-                    df.to_json(DATA_FILE, orient="records", force_ascii=False, indent=4)
-                    del st.session_state.edit_id
-                    st.success("✅ Cambios guardados")
-                    st.rerun()
-            with col_cancel:
-                if st.button("Cancelar"):
-                    del st.session_state.edit_id
-                    st.rerun()
+        # Eliminar trámite
+        if st.button("🗑️ Eliminar Trámite", key=f"deltram_{idx}"):
+            st.session_state.del_tramite = row['ID']
+            st.rerun()
 
-        # Confirmar eliminación
-        if st.session_state.get("del_id") == row['ID']:
-            st.warning("¿Seguro que quieres eliminar este trámite?")
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("Sí, eliminar"):
-                    df = df[df['ID'] != st.session_state.del_id]
-                    df.to_json(DATA_FILE, orient="records", force_ascii=False, indent=4)
-                    del st.session_state.del_id
-                    st.success("Trámite eliminado")
-                    st.rerun()
-            with col2:
-                if st.button("Cancelar"):
-                    del st.session_state.del_id
-                    st.rerun()
+# ================= IMPRESIÓN =================
+if 'tramite_a_imprimir' in st.session_state:
+    t = st.session_state.tramite_a_imprimir
+    st.markdown("---")
+    st.subheader(f"🖨️ Imprimiendo: {t['Nombre_Tramite']}")
+    
+    html = f"""
+    <style>@media print {{body {{margin: 20px; font-family: Arial;}}}} h1,h2{{text-align:center;}} table{{width:100%; border-collapse:collapse;}} th,td{{border:1px solid black; padding:10px;}}</style>
+    <h1>CHECKLIST DE TRÁMITE</h1>
+    <h2>{t['Nombre_Tramite']}</h2>
+    <p><strong>Ingreso:</strong> {t['Fecha_Ingreso']} &nbsp;&nbsp; <strong>Límite:</strong> {t['Fecha_Limite']}</p>
+    <table><tr><th>Paso</th><th>Estado</th><th>Nota</th></tr>
+    """
+    for paso in PASOS:
+        estado = "✅" if t.get(paso, False) else "☐"
+        nota = t.get(paso+"_nota", "")
+        html += f"<tr><td>{paso}</td><td>{estado}</td><td>{nota}</td></tr>"
+    html += "</table><br><p>Impreso el: " + datetime.now().strftime("%d/%m/%Y %H:%M") + "</p>"
+
+    st.components.v1.html(html, height=700)
+    st.download_button("📥 Descargar HTML", html, f"{t['Nombre_Tramite']}.html", "text/html")
+    st.info("💡 Para guardar como PDF: Presiona Ctrl + P → 'Guardar como PDF'")
+
+    if st.button("Cerrar"):
+        del st.session_state.tramite_a_imprimir
+        st.rerun()
+
+# ================= ELIMINAR TRÁMITE =================
+if st.session_state.get("del_tramite"):
+    if st.button("¿Seguro que quieres eliminar este trámite?"):
+        df = df[df['ID'] != st.session_state.del_tramite]
+        df.to_json(DATA_FILE, orient="records", force_ascii=False, indent=4)
+        del st.session_state.del_tramite
+        st.success("Trámite eliminado")
+        st.rerun()
+    if st.button("Cancelar"):
+        del st.session_state.del_tramite
+        st.rerun()
