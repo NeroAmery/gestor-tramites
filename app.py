@@ -4,8 +4,8 @@ import json
 from datetime import datetime, date
 import os
 
-st.set_page_config(page_title="Gestor de Trámites - G", layout="wide")
-st.title("📋 Gestor de Trámites - Agente G")
+st.set_page_config(page_title="Gestor de Trámites - Melisa", layout="wide")
+st.title("📋 Gestor de Trámites - Melisa")
 
 DATA_FILE = "tramites.json"
 PASOS_FILE = "pasos.json"
@@ -57,16 +57,15 @@ with st.sidebar:
                 st.rerun()
         with col4:
             if st.button("🗑️", key=f"delp_{i}"):
-                if st.checkbox("¿Seguro?", key=f"confdel_{i}"):
-                    PASOS.pop(i)
-                    with open(PASOS_FILE, "w", encoding="utf-8") as f:
-                        json.dump(PASOS, f, ensure_ascii=False, indent=4)
-                    st.rerun()
+                PASOS.pop(i)
+                with open(PASOS_FILE, "w", encoding="utf-8") as f:
+                    json.dump(PASOS, f, ensure_ascii=False, indent=4)
+                st.rerun()
 
     if st.session_state.get("edit_paso") is not None:
         i = st.session_state.edit_paso
-        nuevo = st.text_input("Nuevo nombre:", PASOS[i])
-        if st.button("Guardar"):
+        nuevo = st.text_input("Nuevo nombre del paso:", PASOS[i])
+        if st.button("Guardar Cambio"):
             PASOS[i] = nuevo.strip()
             with open(PASOS_FILE, "w", encoding="utf-8") as f:
                 json.dump(PASOS, f, ensure_ascii=False, indent=4)
@@ -108,7 +107,6 @@ for idx, row in df_mostrar.iterrows():
         col1, col2, col3 = st.columns([3,1,1])
         with col1:
             st.write(f"**{row['Nombre_Tramite']}**")
-            # Colores según fecha
             hoy = date.today()
             fecha_lim = pd.to_datetime(row['Fecha_Limite']).date()
             if fecha_lim < hoy:
@@ -117,7 +115,6 @@ for idx, row in df_mostrar.iterrows():
                 st.warning("⚠️ Hoy vence")
             else:
                 st.success("✅ A tiempo")
-            
             st.caption(f"Ingreso: {row['Fecha_Ingreso']} | Límite: {row['Fecha_Limite']}")
 
         with col2:
@@ -126,7 +123,7 @@ for idx, row in df_mostrar.iterrows():
                 st.rerun()
         with col3:
             if st.button("🗑️ Eliminar", key=f"del_{idx}"):
-                st.session_state.del_confirm = row['ID']
+                st.session_state.del_id = row['ID']
                 st.rerun()
 
         # Pasos colapsables
@@ -148,31 +145,43 @@ for idx, row in df_mostrar.iterrows():
                         df.to_json(DATA_FILE, orient="records", force_ascii=False, indent=4)
                         st.rerun()
 
-# ================= ELIMINAR TRÁMITE =================
-if st.session_state.get("del_confirm"):
-    if st.button("¿Seguro que quieres eliminar este trámite?"):
-        df = df[df['ID'] != st.session_state.del_confirm]
-        df.to_json(DATA_FILE, orient="records", force_ascii=False, indent=4)
-        del st.session_state.del_confirm
-        st.success("Trámite eliminado")
-        st.rerun()
+        # Editar Trámite (aparece justo debajo)
+        if st.session_state.get("edit_id") == row['ID']:
+            st.subheader("Editar Trámite")
+            nuevo_nombre = st.text_input("Nombre", row['Nombre_Tramite'], key="edit_nombre")
+            col1, col2 = st.columns(2)
+            with col1:
+                nueva_ing = st.date_input("Fecha Ingreso", pd.to_datetime(row['Fecha_Ingreso']).date(), key="edit_ing")
+            with col2:
+                nueva_lim = st.date_input("Fecha Límite", pd.to_datetime(row['Fecha_Limite']).date(), key="edit_lim")
+            col_save, col_cancel = st.columns(2)
+            with col_save:
+                if st.button("Guardar Cambios"):
+                    real_idx = df.index[df['ID'] == st.session_state.edit_id][0]
+                    df.at[real_idx, 'Nombre_Tramite'] = nuevo_nombre
+                    df.at[real_idx, 'Fecha_Ingreso'] = str(nueva_ing)
+                    df.at[real_idx, 'Fecha_Limite'] = str(nueva_lim)
+                    df.to_json(DATA_FILE, orient="records", force_ascii=False, indent=4)
+                    del st.session_state.edit_id
+                    st.success("✅ Cambios guardados")
+                    st.rerun()
+            with col_cancel:
+                if st.button("Cancelar"):
+                    del st.session_state.edit_id
+                    st.rerun()
 
-# ================= EDITAR TRÁMITE =================
-if st.session_state.get("edit_id"):
-    row = df[df['ID'] == st.session_state.edit_id].iloc[0]
-    st.subheader("Editar Trámite")
-    nuevo_nombre = st.text_input("Nombre", row['Nombre_Tramite'])
-    col1, col2 = st.columns(2)
-    with col1:
-        nueva_ing = st.date_input("Fecha Ingreso", pd.to_datetime(row['Fecha_Ingreso']).date())
-    with col2:
-        nueva_lim = st.date_input("Fecha Límite", pd.to_datetime(row['Fecha_Limite']).date())
-    if st.button("Guardar Cambios"):
-        idx = df.index[df['ID'] == st.session_state.edit_id][0]
-        df.at[idx, 'Nombre_Tramite'] = nuevo_nombre
-        df.at[idx, 'Fecha_Ingreso'] = str(nueva_ing)
-        df.at[idx, 'Fecha_Limite'] = str(nueva_lim)
-        df.to_json(DATA_FILE, orient="records", force_ascii=False, indent=4)
-        del st.session_state.edit_id
-        st.success("Trámite actualizado")
-        st.rerun()
+        # Confirmar eliminación
+        if st.session_state.get("del_id") == row['ID']:
+            st.warning("¿Seguro que quieres eliminar este trámite?")
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("Sí, eliminar"):
+                    df = df[df['ID'] != st.session_state.del_id]
+                    df.to_json(DATA_FILE, orient="records", force_ascii=False, indent=4)
+                    del st.session_state.del_id
+                    st.success("Trámite eliminado")
+                    st.rerun()
+            with col2:
+                if st.button("Cancelar"):
+                    del st.session_state.del_id
+                    st.rerun()
