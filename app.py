@@ -4,8 +4,8 @@ import json
 from datetime import datetime, date
 import os
 
-st.set_page_config(page_title="Gestor de Trámites - G", layout="wide")
-st.title("📋 Gestor de Trámites - Agente G")
+st.set_page_config(page_title="Gestor de Trámites - Melisa", layout="wide")
+st.title("📋 Gestor de Trámites - Melisa")
 
 DATA_FILE = "tramites.json"
 PASOS_FILE = "pasos.json"
@@ -99,8 +99,6 @@ with st.sidebar:
 
 # ================= Resto de la app (Agregar, lista, etc.) =================
 # ... (Mantengo el resto igual para no romper lo que ya funciona)
-
-st.info("✅ Ahora tienes 4 botones por paso: ✏️ Editar • ↑ Subir • ↓ Bajar • 🗑️ Eliminar (con confirmación)")
 
 # ================= AGREGAR TRÁMITE =================
 with st.expander("➕ Agregar Nuevo Trámite", expanded=False):
