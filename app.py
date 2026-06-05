@@ -10,14 +10,13 @@ st.title("📋 Gestor de Trámites - Agente G")
 DATA_FILE = "tramites.json"
 PASOS_FILE = "pasos.json"
 
-# Cargar Pasos
+# Cargar datos
 if os.path.exists(PASOS_FILE):
     with open(PASOS_FILE, "r", encoding="utf-8") as f:
         PASOS = json.load(f)
 else:
     PASOS = ["Análisis", "Oficio Secretaría de Hacienda", "Acuerdo c/ Jefe", "Of. CGJ → SG", "Of. SG → DG", "Acuerdo SG", "En espera de causas", "Sanción", "Rúbrica DGEL", "Rúbrica CGJ", "Ingreso a 4to piso", "Remitir a POEH"]
 
-# Cargar Trámites
 if os.path.exists(DATA_FILE):
     with open(DATA_FILE, "r", encoding="utf-8") as f:
         df = pd.DataFrame(json.load(f))
@@ -33,24 +32,21 @@ for paso in PASOS:
 with st.sidebar:
     st.header("⚙️ Gestionar Pasos")
     
-    # Agregar paso
     nuevo_paso = st.text_input("Nuevo paso:")
     if st.button("➕ Agregar Paso"):
         if nuevo_paso.strip() and nuevo_paso.strip() not in PASOS:
             PASOS.append(nuevo_paso.strip())
             with open(PASOS_FILE, "w", encoding="utf-8") as f:
                 json.dump(PASOS, f, ensure_ascii=False, indent=4)
-            st.success("Paso agregado")
             st.rerun()
 
-    # Reordenar y editar
-    st.subheader("Reordenar / Editar")
+    st.subheader("Pasos Actuales")
     for i, paso in enumerate(PASOS):
         col1, col2, col3, col4 = st.columns([3,1,1,1])
         with col1:
             st.write(f"• {paso}")
         with col2:
-            if st.button("✏️", key=f"ep_{i}"):
+            if st.button("✏️", key=f"editp_{i}"):
                 st.session_state.edit_paso = i
                 st.rerun()
         with col3:
@@ -60,15 +56,16 @@ with st.sidebar:
                     json.dump(PASOS, f, ensure_ascii=False, indent=4)
                 st.rerun()
         with col4:
-            if i < len(PASOS)-1 and st.button("↓", key=f"down_{i}"):
-                PASOS[i], PASOS[i+1] = PASOS[i+1], PASOS[i]
-                with open(PASOS_FILE, "w", encoding="utf-8") as f:
-                    json.dump(PASOS, f, ensure_ascii=False, indent=4)
-                st.rerun()
+            if st.button("🗑️", key=f"delp_{i}"):
+                if st.checkbox("¿Seguro?", key=f"confdel_{i}"):
+                    PASOS.pop(i)
+                    with open(PASOS_FILE, "w", encoding="utf-8") as f:
+                        json.dump(PASOS, f, ensure_ascii=False, indent=4)
+                    st.rerun()
 
     if st.session_state.get("edit_paso") is not None:
         i = st.session_state.edit_paso
-        nuevo = st.text_input("Nuevo nombre del paso:", PASOS[i])
+        nuevo = st.text_input("Nuevo nombre:", PASOS[i])
         if st.button("Guardar"):
             PASOS[i] = nuevo.strip()
             with open(PASOS_FILE, "w", encoding="utf-8") as f:
@@ -77,7 +74,7 @@ with st.sidebar:
             st.rerun()
 
 # ================= AGREGAR TRÁMITE =================
-with st.expander("➕ Agregar Nuevo Trámite", expanded=True):
+with st.expander("➕ Agregar Nuevo Trámite", expanded=False):
     col1, col2 = st.columns(2)
     with col1:
         nombre = st.text_input("Nombre o Número del Trámite *")
@@ -97,7 +94,7 @@ with st.expander("➕ Agregar Nuevo Trámite", expanded=True):
             st.success("✅ Trámite guardado")
             st.rerun()
 
-# ================= LISTA Y EDICIÓN =================
+# ================= LISTA DE TRÁMITES =================
 st.subheader("📋 Mis Trámites")
 
 busqueda = st.text_input("🔍 Buscar", "")
@@ -111,43 +108,65 @@ for idx, row in df_mostrar.iterrows():
         col1, col2, col3 = st.columns([3,1,1])
         with col1:
             st.write(f"**{row['Nombre_Tramite']}**")
+            # Colores según fecha
+            hoy = date.today()
+            fecha_lim = pd.to_datetime(row['Fecha_Limite']).date()
+            if fecha_lim < hoy:
+                st.error("⛔ VENCIDO")
+            elif fecha_lim == hoy:
+                st.warning("⚠️ Hoy vence")
+            else:
+                st.success("✅ A tiempo")
+            
             st.caption(f"Ingreso: {row['Fecha_Ingreso']} | Límite: {row['Fecha_Limite']}")
+
         with col2:
             if st.button("✏️ Editar", key=f"edit_{idx}"):
                 st.session_state.edit_id = row['ID']
                 st.rerun()
         with col3:
-            if st.button("🖨️ Imprimir", key=f"print_{idx}"):
-                st.session_state.tramite_a_imprimir = row.to_dict()
+            if st.button("🗑️ Eliminar", key=f"del_{idx}"):
+                st.session_state.del_confirm = row['ID']
                 st.rerun()
 
-        for paso in PASOS:
-            c1, c2 = st.columns([1,4])
-            with c1:
-                valor = st.checkbox(paso, bool(row.get(paso, False)), key=f"ch_{idx}_{paso}")
-                if valor != row.get(paso, False):
-                    real_idx = df.index[df['ID'] == row['ID']][0]
-                    df.at[real_idx, paso] = valor
-                    df.to_json(DATA_FILE, orient="records", force_ascii=False, indent=4)
-                    st.rerun()
-            with c2:
-                nota = st.text_input("Nota:", row.get(paso+"_nota", ""), key=f"nt_{idx}_{paso}")
-                if nota != row.get(paso+"_nota", ""):
-                    real_idx = df.index[df['ID'] == row['ID']][0]
-                    df.at[real_idx, paso+"_nota"] = nota
-                    df.to_json(DATA_FILE, orient="records", force_ascii=False, indent=4)
-                    st.rerun()
+        # Pasos colapsables
+        with st.expander("Ver pasos y notas", expanded=False):
+            for paso in PASOS:
+                c1, c2 = st.columns([1,4])
+                with c1:
+                    valor = st.checkbox(paso, value=bool(row.get(paso, False)), key=f"ch_{idx}_{paso}")
+                    if valor != row.get(paso, False):
+                        real_idx = df.index[df['ID'] == row['ID']][0]
+                        df.at[real_idx, paso] = valor
+                        df.to_json(DATA_FILE, orient="records", force_ascii=False, indent=4)
+                        st.rerun()
+                with c2:
+                    nota = st.text_input("Nota:", value=row.get(paso + "_nota", ""), key=f"nt_{idx}_{paso}")
+                    if nota != row.get(paso + "_nota", ""):
+                        real_idx = df.index[df['ID'] == row['ID']][0]
+                        df.at[real_idx, paso + "_nota"] = nota
+                        df.to_json(DATA_FILE, orient="records", force_ascii=False, indent=4)
+                        st.rerun()
 
-# Editar trámite completo
+# ================= ELIMINAR TRÁMITE =================
+if st.session_state.get("del_confirm"):
+    if st.button("¿Seguro que quieres eliminar este trámite?"):
+        df = df[df['ID'] != st.session_state.del_confirm]
+        df.to_json(DATA_FILE, orient="records", force_ascii=False, indent=4)
+        del st.session_state.del_confirm
+        st.success("Trámite eliminado")
+        st.rerun()
+
+# ================= EDITAR TRÁMITE =================
 if st.session_state.get("edit_id"):
     row = df[df['ID'] == st.session_state.edit_id].iloc[0]
     st.subheader("Editar Trámite")
     nuevo_nombre = st.text_input("Nombre", row['Nombre_Tramite'])
     col1, col2 = st.columns(2)
     with col1:
-        nueva_ing = st.date_input("Ingreso", pd.to_datetime(row['Fecha_Ingreso']).date())
+        nueva_ing = st.date_input("Fecha Ingreso", pd.to_datetime(row['Fecha_Ingreso']).date())
     with col2:
-        nueva_lim = st.date_input("Límite", pd.to_datetime(row['Fecha_Limite']).date())
+        nueva_lim = st.date_input("Fecha Límite", pd.to_datetime(row['Fecha_Limite']).date())
     if st.button("Guardar Cambios"):
         idx = df.index[df['ID'] == st.session_state.edit_id][0]
         df.at[idx, 'Nombre_Tramite'] = nuevo_nombre
@@ -155,7 +174,5 @@ if st.session_state.get("edit_id"):
         df.at[idx, 'Fecha_Limite'] = str(nueva_lim)
         df.to_json(DATA_FILE, orient="records", force_ascii=False, indent=4)
         del st.session_state.edit_id
-        st.success("Actualizado")
+        st.success("Trámite actualizado")
         st.rerun()
-
-st.info("Prueba reordenar pasos y editar trámites")
