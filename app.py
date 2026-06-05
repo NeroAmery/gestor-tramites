@@ -4,8 +4,8 @@ import json
 from datetime import datetime, date
 import os
 
-st.set_page_config(page_title="Gestor de Trámites - Melisa", layout="wide")
-st.title("📋 Gestor de Trámites - Melisa")
+st.set_page_config(page_title="Gestor de Trámites - G", layout="wide")
+st.title("📋 Gestor de Trámites - Agente G")
 
 DATA_FILE = "tramites.json"
 PASOS_FILE = "pasos.json"
@@ -28,10 +28,11 @@ for paso in PASOS:
         df[paso] = False
         df[paso + "_nota"] = ""
 
-# ================= SIDEBAR =================
+# ================= SIDEBAR - GESTIÓN DE PASOS =================
 with st.sidebar:
     st.header("⚙️ Gestionar Pasos")
     
+    # Agregar nuevo paso
     nuevo_paso = st.text_input("Nuevo paso:")
     if st.button("➕ Agregar Paso"):
         if nuevo_paso.strip() and nuevo_paso.strip() not in PASOS:
@@ -41,8 +42,9 @@ with st.sidebar:
             st.rerun()
 
     st.subheader("Pasos Actuales")
+    
     for i, paso in enumerate(PASOS):
-        col1, col2, col3, col4 = st.columns([3,1,1,1])
+        col1, col2, col3, col4, col5 = st.columns([4, 1, 1, 1, 1])
         with col1:
             st.write(f"• {paso}")
         with col2:
@@ -56,21 +58,49 @@ with st.sidebar:
                     json.dump(PASOS, f, ensure_ascii=False, indent=4)
                 st.rerun()
         with col4:
-            if st.button("🗑️", key=f"delp_{i}"):
-                PASOS.pop(i)
+            if i < len(PASOS)-1 and st.button("↓", key=f"down_{i}"):
+                PASOS[i], PASOS[i+1] = PASOS[i+1], PASOS[i]
                 with open(PASOS_FILE, "w", encoding="utf-8") as f:
                     json.dump(PASOS, f, ensure_ascii=False, indent=4)
                 st.rerun()
+        with col5:
+            if st.button("🗑️", key=f"delp_{i}"):
+                st.session_state.del_paso_confirm = i
+                st.rerun()
 
+    # Confirmar eliminación de paso
+    if st.session_state.get("del_paso_confirm") is not None:
+        i = st.session_state.del_paso_confirm
+        st.warning(f"¿Eliminar el paso '{PASOS[i]}'?")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("Sí, eliminar"):
+                PASOS.pop(i)
+                with open(PASOS_FILE, "w", encoding="utf-8") as f:
+                    json.dump(PASOS, f, ensure_ascii=False, indent=4)
+                del st.session_state.del_paso_confirm
+                st.rerun()
+        with col2:
+            if st.button("Cancelar"):
+                del st.session_state.del_paso_confirm
+                st.rerun()
+
+    # Editar nombre de paso
     if st.session_state.get("edit_paso") is not None:
         i = st.session_state.edit_paso
-        nuevo = st.text_input("Nuevo nombre del paso:", PASOS[i])
+        nuevo_nombre = st.text_input("Nuevo nombre del paso:", PASOS[i], key="nuevo_paso_input")
         if st.button("Guardar Cambio"):
-            PASOS[i] = nuevo.strip()
+            PASOS[i] = nuevo_nombre.strip()
             with open(PASOS_FILE, "w", encoding="utf-8") as f:
                 json.dump(PASOS, f, ensure_ascii=False, indent=4)
             del st.session_state.edit_paso
+            st.success("Paso actualizado")
             st.rerun()
+
+# ================= Resto de la app (Agregar, lista, etc.) =================
+# ... (Mantengo el resto igual para no romper lo que ya funciona)
+
+st.info("✅ Ahora tienes 4 botones por paso: ✏️ Editar • ↑ Subir • ↓ Bajar • 🗑️ Eliminar (con confirmación)")
 
 # ================= AGREGAR TRÁMITE =================
 with st.expander("➕ Agregar Nuevo Trámite", expanded=False):
